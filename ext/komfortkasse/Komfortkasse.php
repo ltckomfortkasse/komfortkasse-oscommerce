@@ -9,7 +9,7 @@
 include_once 'Komfortkasse_Config.php';
 include_once 'Komfortkasse_Order.php';
 class Komfortkasse {
-	const plugin_version = '1.0.8';
+	const plugin_version = '1.0.9';
 	
 	const maxlen_ssl = 117;
 	const len_mcrypt = 16;
@@ -40,40 +40,25 @@ class Komfortkasse {
 				$id = trim ( $id );
 				// schritt 2: details pro auftrag ausgeben
 				$order = Komfortkasse_Order::getOrder ( $id );
-				if (! $order)
+				if (! $order) {
 					continue;
+                }
 					
-					// echo "<pre>"; var_dump ($order); echo "</pre>";
-				$o = $o . self::kk_csv ( $order ['number'] );
-				$o = $o . self::kk_csv ( $order ['email'] );
-				$o = $o . self::kk_csv ( $order ['customer_number'] );
-				$o = $o . self::kk_csv ( $order ['payment_method'] );
-				$o = $o . self::kk_csv ( $order ['amount'] );
-				$o = $o . self::kk_csv ( $order ['currency_code'] );
-				$o = $o . self::kk_csv ( $order ['exchange_rate'] );
-				$o = $o . self::kk_csv ( $order ['language_code'] );
-				$o = $o . self::kk_csv ( $order ['date'] );
-				$o = $o . self::kk_csv ( $order ['delivery_firstname'] );
-				$o = $o . self::kk_csv ( $order ['delivery_lastname'] );
-				$o = $o . self::kk_csv ( $order ['delivery_company'] );
-				$o = $o . self::kk_csv ( $order ['billing_firstname'] );
-				$o = $o . self::kk_csv ( $order ['billing_lastname'] );
-				$o = $o . self::kk_csv ( $order ['billing_company'] );
-				
-				foreach ( $order ['products'] as $product ) {
-					$o = $o . self::kk_csv ( $product );
-				}
-				
+				$o = $o . http_build_query($order);
 				$o = $o . "\n";
 				// echo $o;
 			}
-			$cry = self::kkencrypt ( $o );
-			if ($cry === false)
-				echo self::kkcrypterror ();
-			else
-				echo $cry;
-		}
-	}
+            $cry = Komfortkasse::kkencrypt($o);
+            if ($cry === false) {
+                Komfortkasse::output(Komfortkasse::kkcrypterror());
+            } else {
+                Komfortkasse::output($cry);
+            }
+        }
+     // end if
+    }
+
+ // end read()
 	
 	// ------------- init --------------------
 	public function test() {
@@ -84,89 +69,116 @@ class Komfortkasse {
 		
 		echo $enc;
 	}
-	
-	// ------------- init --------------------
-	public function init() {
-		echo "connection:connectionsuccess|";
-		
-		echo "accesskey:";
-		// set access code
-		$hashed = md5 ( Komfortkasse_Config::getRequestParameter ( 'accesscode' ) );
-		if (Komfortkasse_Config::getConfig ( Komfortkasse_Config::accesscode ) != '' && Komfortkasse_Config::getConfig ( Komfortkasse_Config::accesscode ) != 'undefined' && Komfortkasse_Config::getConfig ( Komfortkasse_Config::accesscode ) != $hashed) {
-			echo "Access Code already set! Shop " . Komfortkasse_Config::getConfig ( Komfortkasse_Config::accesscode ) . ", given (hash) " . $hashed;
-			return;
-		}
-		
-		if ($hashed != Komfortkasse_Config::getRequestParameter ( 'accesscode_hash' )) {
-			echo "MD5 Hashes do not match! Shop " . $hashed . " given " . Komfortkasse_Config::getRequestParameter ( 'accesscode_hash' );
-			return;
-		}
-		
-		Komfortkasse_Config::setConfig ( Komfortkasse_Config::accesscode, $hashed );
-		echo "accesskeysuccess|";
-		
-		echo "apikey:";
-		// set API key
-		$apikey = Komfortkasse_Config::getRequestParameter ( 'apikey' );
-		if (Komfortkasse_Config::getConfig ( Komfortkasse_Config::apikey ) != '' && Komfortkasse_Config::getConfig ( Komfortkasse_Config::apikey ) != 'undefined' && Komfortkasse_Config::getConfig ( Komfortkasse_Config::apikey ) != $apikey) {
-			echo "API Key already set! Shop " . Komfortkasse_Config::getConfig ( Komfortkasse_Config::apikey ) . ", given " . $apikey;
-			return;
-		}
-		
-		Komfortkasse_Config::setConfig ( Komfortkasse_Config::apikey, $apikey );
-		echo "apikeysuccess|";
-			
-		// test for openssl encryption
-		echo "encryption:";
-		if (extension_loaded ( 'openssl' )) {
-			Komfortkasse_Config::setConfig ( Komfortkasse_Config::encryption, 'openssl' );
-			
-			// test for public&privatekey encryption
-			$kpriv = Komfortkasse_Config::getRequestParameter ( 'privateKey' );
-			$kpub = Komfortkasse_Config::getRequestParameter ( 'publicKey' );
-			Komfortkasse_Config::setConfig ( Komfortkasse_Config::privatekey, $kpriv );
-			Komfortkasse_Config::setConfig ( Komfortkasse_Config::publickey, $kpub );
-			
-			echo "openssl#" . OPENSSL_VERSION_TEXT . "#" . OPENSSL_VERSION_NUMBER . "|";
-			
-			// test with rsa
-			$crypttest =  Komfortkasse_Config::getRequestParameter ( 'testSSLEnc' ) ;
-		} else if (extension_loaded ( 'mcrypt' )) {
-			Komfortkasse_Config::setConfig ( Komfortkasse_Config::encryption, 'mcrypt' );
-			
-			// test for mcrypt encryption
-			$sec = Komfortkasse_Config::getRequestParameter ( 'mCryptSecretKey' );
-			$iv = Komfortkasse_Config::getRequestParameter ( 'mCryptIV' );
-			Komfortkasse_Config::setConfig ( Komfortkasse_Config::privatekey, $sec );
-			Komfortkasse_Config::setConfig ( Komfortkasse_Config::publickey, $iv );
-			
-			echo "mcrypt|";
-			
-			// test with mcrypt
-			$crypttest =  Komfortkasse_Config::getRequestParameter ( 'testMCryptEnc' ) ;
-		} else {
-			Komfortkasse_Config::setConfig ( Komfortkasse_Config::encryption, 'base64' );
-			// $db->execute ( "update " . TABLE_PLUGIN_CONFIGURATION . " set config_value='base64' where config_key='KOMFORTKASSE_ENCRYPTION'" );
-			echo "base64|";
-			
-			// test with base64 encoding
-			$crypttest =  Komfortkasse_Config::getRequestParameter ( 'testBase64Enc' ) ;
-		}
-		
-		echo "decryptiontest:";
-		$decrypt = self::kkdecrypt ( $crypttest, Komfortkasse_Config::getConfig ( Komfortkasse_Config::encryption ) );
-		if ($decrypt == "Can you hear me?")
-			echo "ok";
-		else
-			echo self::kkcrypterror ();
-		
-		echo "|encryptiontest:";
-		$encrypt = self::kkencrypt ( "Yes, I see you!", Komfortkasse_Config::getConfig ( Komfortkasse_Config::encryption ) );
-		if ($encrypt !== FALSE)
-			echo $encrypt;
-		else
-			echo self::kkcrypterror ();
-	}
+    
+    /**
+     * Init.
+     *
+     * @return void
+     */
+    public static function init()
+    {
+        Komfortkasse::output('connection:connectionsuccess|');
+
+        Komfortkasse::output('accesskey:');
+        // Set access code.
+        $hashed = md5(Komfortkasse_Config::getRequestParameter('accesscode'));
+        $current = Komfortkasse_Config::getConfig(Komfortkasse_Config::accesscode);
+        if ($current != '' && $current !== 'undefined' && $current != $hashed) {
+            Komfortkasse::output('Access Code already set! Shop ' . $current . ', given (hash) ' . $hashed);
+            return;
+        }
+
+        if ($hashed != Komfortkasse_Config::getRequestParameter('accesscode_hash')) {
+            Komfortkasse::output('MD5 Hashes do not match! Shop ' . $hashed . ' given ' . Komfortkasse_Config::getRequestParameter('accesscode_hash'));
+            return;
+        }
+
+        Komfortkasse_Config::setConfig(Komfortkasse_Config::accesscode, $hashed);
+        Komfortkasse::output('accesskeysuccess|');
+
+        Komfortkasse::output('apikey:');
+        // Set API key.
+        $apikey = Komfortkasse_Config::getRequestParameter('apikey');
+        if (Komfortkasse_Config::getConfig(Komfortkasse_Config::apikey) != '' && Komfortkasse_Config::getConfig(Komfortkasse_Config::apikey) !== 'undefined' && Komfortkasse_Config::getConfig(Komfortkasse_Config::apikey) !== $apikey) {
+            Komfortkasse::output('API Key already set! Shop ' . Komfortkasse_Config::getConfig(Komfortkasse_Config::apikey) . ', given ' . $apikey);
+            return;
+        }
+
+        Komfortkasse_Config::setConfig(Komfortkasse_Config::apikey, $apikey);
+        Komfortkasse::output('apikeysuccess|');
+
+        Komfortkasse::output('encryption:');
+        $encryptionstring = null;
+        // Look for openssl encryption.
+        if (extension_loaded('openssl') === true) {
+
+            // Look for public&privatekey encryption.
+            $kpriv = Komfortkasse_Config::getRequestParameter('privateKey');
+            $kpub = Komfortkasse_Config::getRequestParameter('publicKey');
+            Komfortkasse_Config::setConfig(Komfortkasse_Config::privatekey, $kpriv);
+            Komfortkasse_Config::setConfig(Komfortkasse_Config::publickey, $kpub);
+
+            // Try with rsa.
+            $crypttest = Komfortkasse_Config::getRequestParameter('testSSLEnc');
+            $decrypt = Komfortkasse::kkdecrypt($crypttest, 'openssl');
+            if ($decrypt === 'Can you hear me?') {
+                $encryptionstring = 'openssl#' . OPENSSL_VERSION_TEXT . '#' . OPENSSL_VERSION_NUMBER . '|';
+                Komfortkasse_Config::setConfig(Komfortkasse_Config::encryption, 'openssl');
+            }
+        }
+
+        if (!$encryptionstring && extension_loaded('mcrypt') === true) {
+            // Look for mcrypt encryption.
+            $sec = Komfortkasse_Config::getRequestParameter('mCryptSecretKey');
+            $iv = Komfortkasse_Config::getRequestParameter('mCryptIV');
+            Komfortkasse_Config::setConfig(Komfortkasse_Config::privatekey, $sec);
+            Komfortkasse_Config::setConfig(Komfortkasse_Config::publickey, $iv);
+
+            // Try with mcrypt.
+            $crypttest = Komfortkasse_Config::getRequestParameter('testMCryptEnc');
+            $decrypt = Komfortkasse::kkdecrypt($crypttest, 'mcrypt');
+            if ($decrypt === 'Can you hear me?') {
+                $encryptionstring = 'mcrypt|';
+                Komfortkasse_Config::setConfig(Komfortkasse_Config::encryption, 'mcrypt');
+            }
+        }
+
+        // Fallback: base64.
+        if (!$encryptionstring) {
+            // Try with base64 encoding.
+            $crypttest = Komfortkasse_Config::getRequestParameter('testBase64Enc');
+            $decrypt = Komfortkasse::kkdecrypt($crypttest, 'base64');
+            if ($decrypt === 'Can you hear me?') {
+                $encryptionstring = 'base64|';
+                Komfortkasse_Config::setConfig(Komfortkasse_Config::encryption, 'base64');
+            }
+        }
+
+        if (!$encryptionstring) {
+            $encryptionstring = 'ERROR:no encryption possible|';
+        }
+
+        Komfortkasse::output($encryptionstring);
+
+        Komfortkasse::output('decryptiontest:');
+        $decrypt = Komfortkasse::kkdecrypt($crypttest, Komfortkasse_Config::getConfig(Komfortkasse_Config::encryption));
+        if ($decrypt === 'Can you hear me?') {
+            Komfortkasse::output('ok');
+        } else {
+            Komfortkasse::output(Komfortkasse::kkcrypterror());
+        }
+
+        Komfortkasse::output('|encryptiontest:');
+        $encrypt = Komfortkasse::kkencrypt('Yes, I see you!', Komfortkasse_Config::getConfig(Komfortkasse_Config::encryption));
+        if ($encrypt !== false) {
+            Komfortkasse::output($encrypt);
+        } else {
+            Komfortkasse::output(Komfortkasse::kkcrypterror());
+        }
+
+    }
+
+ // end init()
 	
 	// ------------------ updateorders ------------------------------
 	public function updateorders() {
@@ -409,6 +421,11 @@ class Komfortkasse {
 	protected function kk_csv($s) {
 		return "\"" . str_replace ( "\"", "", str_replace ( ";", ",", $s ) ) . "\";";
 	}
+    protected static function output($s)
+    {
+        echo $s;
+
+    }
 }
 
 ?>
