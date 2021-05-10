@@ -9,7 +9,7 @@
 include_once 'Komfortkasse_Config.php';
 include_once 'Komfortkasse_Order.php';
 class Komfortkasse {
-	const plugin_version = '1.0.10';
+	const plugin_version = '1.0.11';
 
 	const maxlen_ssl = 117;
 	const len_mcrypt = 16;

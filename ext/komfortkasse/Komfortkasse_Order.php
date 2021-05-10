@@ -9,26 +9,15 @@
  * Komfortkasse
  * Config Class
  *
- * @version 1.0.10-osc2.4
+ * @version 1.0.11-osc2.4
  */
 class Komfortkasse_Order {
 
 	// return all order numbers that are "open" and relevant for tranfer to kk
 	public static function getOpenIDs() {
 
-		// get payment module names
-		// hint: when called while placing an order, the constants will already be defined. wehen called from external, this will only work for orders made in the default language.
-		$lang_q = tep_db_query("SELECT l.directory FROM " . TABLE_CONFIGURATION . " c join " . TABLE_LANGUAGES . " l on c.configuration_value=l.code  where configuration_key='DEFAULT_LANGUAGE'");
-		$lang_a = tep_db_fetch_array($lang_q);
-		$lang = $lang_a ['directory'];
-
-		$paycodes = preg_split('/,/', Komfortkasse_Config::getConfig(Komfortkasse_Config::payment_methods));
-		foreach ( $paycodes as $paycode ) {
-			include_once DIR_FS_CATALOG . DIR_WS_LANGUAGES . $lang.'/modules/payment/'.$paycode.'.php';
-				$name = constant('MODULE_PAYMENT_' . strtoupper($paycode) . '_TEXT_TITLE');
-			if ($name)
-				$paynames [] = $name;
-		}
+	    $payname_lang = Komfortkasse_Order::getPaymentNames();
+	    $paynames = array_keys($payname_lang);
 
 		// get order ids
 		$ret = array ();
@@ -49,6 +38,35 @@ class Komfortkasse_Order {
 
 		return $ret;
 	}
+
+	private static function getPaymentNames() {
+	    // get payment module names
+
+	    $ret = array();
+	    $paycodes = preg_split('/,/', Komfortkasse_Config::getConfig(Komfortkasse_Config::payment_methods));
+
+	    $lang_q = tep_db_query("SELECT l.code, l.directory FROM " . TABLE_LANGUAGES . " l");
+	    while ($lang_a = tep_db_fetch_array($lang_q)) {
+    	    foreach ( $paycodes as $paycode ) {
+    	        $lines = file(DIR_FS_CATALOG . DIR_WS_LANGUAGES . $lang_a['directory'] . '/modules/payment/'.$paycode.'.php');
+	            if ($lines) {
+	                foreach ($lines as $line) {
+	                    $search = 'MODULE_PAYMENT_' . strtoupper($paycode) . '_TEXT_TITLE';
+	                    $pos = strpos($line, $search);
+	                    if ($pos) {
+	                        $name = substr($line, $pos + strlen($search));
+	                        if ($name) {
+	                            $name = trim($name, " \r\n()',;");
+	                            $ret[$name] = $lang_a['code'];
+	                        }
+	                    }
+	                }
+    	        }
+    	    }
+	    }
+	    return $ret;
+	}
+
 	public static function getOrder($number) {
 		require_once DIR_FS_CATALOG . DIR_WS_CLASSES . 'order.php';
 
@@ -71,12 +89,14 @@ class Komfortkasse_Order {
 		$country_del_a = tep_db_fetch_array($country_del_q);
 
 
+		$payname = $order->info ['payment_method'];
 		if (array_key_exists('languages_id', $_SESSION)) {
 			$lang_q = tep_db_query("SELECT l.code FROM " . TABLE_LANGUAGES . " l where l.languages_id=" . $_SESSION ['languages_id']);
 			$lang_a = tep_db_fetch_array($lang_q);
 			$lang = $lang_a ['code'];
 		} else {
-			$lang = '';
+		    $payname_lang = Komfortkasse_Order::getPaymentNames();
+		    $lang = $payname_lang[$payname];
 		}
 
 		$ret = array ();
@@ -84,7 +104,7 @@ class Komfortkasse_Order {
 		$ret ['date'] = date("d.m.Y", strtotime($order->info ['date_purchased']));
 		$ret ['email'] = $order->customer ['email_address'];
 		$ret ['customer_number'] = $order->customer ['id'];
-		$ret ['payment_method'] = $order->info ['payment_method'];
+		$ret ['payment_method'] = trim(html_entity_decode($payname));
 		$ret ['amount'] = $total;
 		$ret ['currency_code'] = $order->info ['currency'];
 		$ret ['exchange_rate'] = $order->info ['currency_value'];
