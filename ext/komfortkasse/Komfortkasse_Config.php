@@ -27,12 +27,12 @@ class Komfortkasse_Config {
 		$sql_data_array = array (
 				'configuration_value' => $value 
 		);
-		tep_db_perform(TABLE_CONFIGURATION, $sql_data_array, 'update', "configuration_key='" . $constant_key . "'");
+		tep_db_perform(TABLE_CONFIGURATION, $sql_data_array, 'update', "configuration_key='" . tep_db_input($constant_key) . "'");
 		self::$cache [$constant_key] = $value;
 	}
 	public static function getConfig($constant_key) {
 		if (!array_key_exists($constant_key, self::$cache)) {
-			$config_q = tep_db_query("SELECT configuration_value FROM " . TABLE_CONFIGURATION . " where configuration_key='" . $constant_key . "'");
+			$config_q = tep_db_query("SELECT configuration_value FROM " . TABLE_CONFIGURATION . " where configuration_key='" . tep_db_input($constant_key) . "'");
 			$config_a = tep_db_fetch_array($config_q);
 			$config = $config_a ['configuration_value'];
 			self::$cache [$constant_key] = $config;
