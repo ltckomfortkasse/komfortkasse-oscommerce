@@ -9,7 +9,7 @@
  * Komfortkasse
  * Config Class
  *
- * @version 1.0.11-osc2.4
+ * @version 1.0.12-osc2.4
  */
 class Komfortkasse_Order {
 
@@ -76,7 +76,7 @@ class Komfortkasse_Order {
 
 		$order = new order($number);
 		if (empty($number) || empty($order)) {
-			return null;
+		    return null;
 		}
 
 		$total_q = tep_db_query("SELECT value FROM " . TABLE_ORDERS_TOTAL . " where orders_id=" . $number . " and class='ot_total'");

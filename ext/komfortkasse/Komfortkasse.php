@@ -9,7 +9,7 @@
 include_once 'Komfortkasse_Config.php';
 include_once 'Komfortkasse_Order.php';
 class Komfortkasse {
-	const plugin_version = '1.0.11';
+	const plugin_version = '1.0.12';
 
 	const maxlen_ssl = 117;
 	const len_mcrypt = 16;
@@ -43,6 +43,8 @@ class Komfortkasse {
 				if (! $order) {
 					continue;
                 }
+                if ($order['payment_method'])
+                    $order['type'] = self::getOrderType($order);
 
 				$o = $o . http_build_query($order);
 				$o = $o . "\n";
@@ -247,6 +249,7 @@ class Komfortkasse {
 		}
 
 		$order = Komfortkasse_Order::getOrder($id);
+		$order['type'] = self::getOrderType($order);
 
 		$query_raw = http_build_query ($order);
 
@@ -431,6 +434,42 @@ class Komfortkasse {
         echo $s;
 
     }
+
+    public static function readconfig() {
+        $key = Komfortkasse_Config::getRequestParameter('confkey');
+        // Only a fixed list of non-sensitive Komfortkasse configuration keys may be read.
+        // This prevents reading arbitrary configuration entries (e.g. other modules' secrets)
+        // and never returns the plugin's own secrets (access code, API key, public/private key).
+        $allowed = array (
+                Komfortkasse_Config::activate_export,
+                Komfortkasse_Config::activate_update,
+                Komfortkasse_Config::encryption,
+                Komfortkasse_Config::payment_methods,
+                Komfortkasse_Config::status_open,
+                Komfortkasse_Config::status_paid,
+                Komfortkasse_Config::status_cancelled
+        );
+        if (!in_array($key, $allowed, true)) {
+            return null;
+        }
+
+                $storeid = Komfortkasse_Config::getRequestParameter('storeid');
+
+                $order = null;
+                if ($storeid)
+                    $order['store_id'] = $storeid;
+
+                    Komfortkasse::output(Komfortkasse_Config::getConfig($key, $order));
+    }
+
+    public static function getOrderType($order) {
+        $payment_method = $order['payment_method'];
+        $paycodes = preg_split('/,/', trim(str_replace('"','',Komfortkasse_Config::getConfig(Komfortkasse_Config::payment_methods, $order))));
+        if (in_array($payment_method, $paycodes))
+            return 'PREPAYMENT';
+        return '';
+    }
+
 }
 
 ?>
